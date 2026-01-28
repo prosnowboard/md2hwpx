@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>md2hwpx - 마크다운 → HWPX 변환기</title>
+    <style>
+        :root {
+            --primary-blue: #2563eb;
+            --primary-blue-hover: #1d4ed8;
+            --primary-blue-active: #1e40af;
+            --bg-light: #f8fafc;
+            --bg-white: #ffffff;
+            --border-gray: #e2e8f0;
+            --text-dark: #1e293b;
+            --text-gray: #64748b;
+            --success-green: #10b981;
+            --error-red: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        header {
+            background-color: var(--bg-white);
+            border-bottom: 1px solid var(--border-gray);
+            padding: 1.5rem 1rem;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0 0 0.25rem 0;
+            font-size: 2rem;
+            color: var(--primary-blue);
+            font-weight: 700;
+        }
+
+        .subtitle {
+            margin: 0 0 1rem 0;
+            font-size: 1rem;
+            color: var(--text-gray);
+        }
+
+        .style-selector {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .style-selector label {
+            font-size: 0.875rem;
+            color: var(--text-gray);
+        }
+
+        select {
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            border: 1px solid var(--border-gray);
+            border-radius: 0.375rem;
+            background-color: var(--bg-white);
+            color: var(--text-dark);
+            font-size: 0.875rem;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.5rem center;
+        }
+
+        select:hover {
+            border-color: var(--primary-blue);
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            display: grid;
+            grid-template-columns: 3fr 2fr;
+            gap: 1.5rem;
+        }
+
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        #md-input {
+            width: 100%;
+            min-height: 400px;
+            padding: 1rem;
+            border: 1px solid var(--border-gray);
+            border-radius: 0.5rem;
+            background-color: var(--bg-white);
+            font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+            font-size: 0.875rem;
+            color: var(--text-dark);
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        #md-input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        #convert-btn {
+            padding: 0.875rem 1.5rem;
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        #convert-btn:hover {
+            background-color: var(--primary-blue-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        #convert-btn:active {
+            background-color: var(--primary-blue-active);
+            transform: translateY(0);
+        }
+
+        #convert-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #convert-btn.loading::after {
+            content: "";
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: translateY(-50%) rotate(360deg); }
+        }
+
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card {
+            background-color: var(--bg-white);
+            border: 1px solid var(--border-gray);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+        }
+
+        .card h2 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1.125rem;
+            color: var(--text-dark);
+        }
+
+        .info-panel ul {
+            margin: 0;
+            padding-left: 1.25rem;
+            color: var(--text-gray);
+            font-size: 0.875rem;
+        }
+
+        .info-panel li {
+            margin-bottom: 0.25rem;
+        }
+
+        #status {
+            min-height: 3rem;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: none;
+        }
+
+        #status.visible {
+            display: block;
+        }
+
+        #status.success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        #status.error {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        #drop-zone {
+            border: 2px dashed var(--border-gray);
+            border-radius: 0.5rem;
+            padding: 2rem 1rem;
+            text-align: center;
+            color: var(--text-gray);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #drop-zone:hover,
+        #drop-zone.highlight {
+            border-color: var(--primary-blue);
+            background-color: rgba(37, 99, 235, 0.05);
+            color: var(--primary-blue);
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .drop-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-list {
+            display: none;
+            background-color: var(--bg-white);
+            border: 1px solid var(--border-gray);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+        }
+
+        .file-list.visible {
+            display: block;
+        }
+
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .file-list-header span {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .file-list-clear {
+            font-size: 0.75rem;
+            color: var(--error-red);
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+
+        .file-list-clear:hover {
+            background-color: #fee2e2;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.375rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8125rem;
+            color: var(--text-dark);
+        }
+
+        .file-item:nth-child(even) {
+            background-color: var(--bg-light);
+        }
+
+        .file-item-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-item-remove {
+            color: var(--text-gray);
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            padding: 0 0.25rem;
+            line-height: 1;
+        }
+
+        .file-item-remove:hover {
+            color: var(--error-red);
+        }
+
+        .file-item-status {
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .file-item-status.done {
+            color: var(--success-green);
+        }
+
+        .file-item-status.fail {
+            color: var(--error-red);
+        }
+
+        .file-item-status.pending {
+            color: var(--text-gray);
+        }
+
+        @media (max-width: 768px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            #md-input {
+                min-height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>md2hwpx</h1>
+        <p class="subtitle">마크다운 → HWPX 변환기</p>
+        <div class="style-selector">
+            <label for="style-select">스타일:</label>
+            <select id="style-select">
+                <option value="default">기본</option>
+                <option value="academic">학술</option>
+                <option value="business">비즈니스</option>
+                <option value="minimal">미니멀</option>
+            </select>
+        </div>
+    </header>
+
+    <main>
+        <div class="left-column">
+            <textarea id="md-input" spellcheck="false" wrap="off" placeholder="마크다운을 입력하세요..."></textarea>
+            <div class="file-list" id="file-list">
+                <div class="file-list-header">
+                    <span id="file-list-title"></span>
+                    <button class="file-list-clear" id="file-list-clear">전체 제거</button>
+                </div>
+                <div id="file-list-items"></div>
+            </div>
+            <button id="convert-btn">변환 및 다운로드</button>
+        </div>
+
+        <div class="right-column">
+            <div class="card info-panel">
+                <h2>지원 요소</h2>
+                <ul>
+                    <li>제목 (H1-H6)</li>
+                    <li>본문 단락</li>
+                    <li>순서 있는/없는 목록</li>
+                    <li>표 (테이블)</li>
+                    <li>코드 블록</li>
+                    <li>인용구</li>
+                    <li>강조 / 굵은 글씨</li>
+                </ul>
+            </div>
+
+            <div class="card">
+                <h2>상태</h2>
+                <div id="status"></div>
+            </div>
+
+            <div class="card" id="drop-zone">
+                <div class="drop-icon">📄</div>
+                <div>파일을 여기에 드래그하거나 클릭하세요</div>
+                <div style="font-size:0.75rem;margin-top:0.25rem;color:var(--text-gray)">여러 파일 동시 선택 가능</div>
+                <input type="file" id="file-input" accept=".md,.markdown,.txt" multiple>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        (function() {
+            // Element references
+            const mdInput = document.getElementById('md-input');
+            const styleSelect = document.getElementById('style-select');
+            const convertBtn = document.getElementById('convert-btn');
+            const statusDiv = document.getElementById('status');
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const fileListDiv = document.getElementById('file-list');
+            const fileListTitle = document.getElementById('file-list-title');
+            const fileListItems = document.getElementById('file-list-items');
+            const fileListClear = document.getElementById('file-list-clear');
+
+            // Pending files queue
+            let pendingFiles = [];
+
+            // Style persistence
+            const savedStyle = localStorage.getItem('md2hwpx-style');
+            if (savedStyle) {
+                styleSelect.value = savedStyle;
+            }
+
+            styleSelect.addEventListener('change', function() {
+                localStorage.setItem('md2hwpx-style', this.value);
+            });
+
+            // Status display
+            function showStatus(message, type) {
+                statusDiv.innerHTML = message;
+                statusDiv.className = 'visible ' + type;
+            }
+
+            function hideStatus() {
+                statusDiv.className = '';
+            }
+
+            // --- File list management ---
+
+            function addFiles(files) {
+                for (const f of files) {
+                    pendingFiles.push(f);
+                }
+                renderFileList();
+            }
+
+            function removeFile(index) {
+                pendingFiles.splice(index, 1);
+                renderFileList();
+            }
+
+            function clearFiles() {
+                pendingFiles = [];
+                renderFileList();
+            }
+
+            function renderFileList() {
+                if (pendingFiles.length === 0) {
+                    fileListDiv.classList.remove('visible');
+                    updateConvertBtnLabel();
+                    return;
+                }
+                fileListDiv.classList.add('visible');
+                fileListTitle.textContent = pendingFiles.length + '개 파일 선택됨';
+                fileListItems.innerHTML = '';
+                pendingFiles.forEach(function(file, idx) {
+                    const item = document.createElement('div');
+                    item.className = 'file-item';
+                    item.setAttribute('data-index', idx);
+
+                    const name = document.createElement('span');
+                    name.className = 'file-item-name';
+                    name.textContent = file.name;
+
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'file-item-status pending';
+                    statusSpan.id = 'file-status-' + idx;
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'file-item-remove';
+                    removeBtn.textContent = '\u00d7';
+                    removeBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        removeFile(idx);
+                    };
+
+                    item.appendChild(name);
+                    item.appendChild(statusSpan);
+                    item.appendChild(removeBtn);
+                    fileListItems.appendChild(item);
+                });
+                updateConvertBtnLabel();
+            }
+
+            function updateConvertBtnLabel() {
+                if (pendingFiles.length > 0) {
+                    convertBtn.textContent = pendingFiles.length + '개 파일 변환 및 다운로드';
+                } else {
+                    convertBtn.textContent = '변환 및 다운로드';
+                }
+            }
+
+            function setFileStatus(idx, status, text) {
+                const el = document.getElementById('file-status-' + idx);
+                if (el) {
+                    el.className = 'file-item-status ' + status;
+                    el.textContent = text;
+                }
+            }
+
+            fileListClear.addEventListener('click', function() {
+                clearFiles();
+            });
+
+            // --- File input / drag-and-drop ---
+
+            dropZone.addEventListener('click', function() {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    addFiles(e.target.files);
+                }
+                fileInput.value = '';
+            });
+
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('highlight');
+            });
+
+            dropZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('highlight');
+            });
+
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('highlight');
+                if (e.dataTransfer.files.length > 0) {
+                    addFiles(e.dataTransfer.files);
+                }
+            });
+
+            // --- Download helper ---
+
+            function downloadBlob(blob, filename) {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }
+
+            // --- Deduplicate filenames ---
+
+            function deduplicateFilename(basename, usedNames) {
+                if (!usedNames.has(basename)) {
+                    usedNames.add(basename);
+                    return basename;
+                }
+                const dot = basename.lastIndexOf('.');
+                const name = dot > 0 ? basename.substring(0, dot) : basename;
+                const ext = dot > 0 ? basename.substring(dot) : '';
+                let n = 1;
+                while (usedNames.has(name + '(' + n + ')' + ext)) {
+                    n++;
+                }
+                const result = name + '(' + n + ')' + ext;
+                usedNames.add(result);
+                return result;
+            }
+
+            // --- Convert: batch files or textarea ---
+
+            async function convert() {
+                const style = styleSelect.value;
+
+                if (pendingFiles.length > 0) {
+                    await convertFiles(style);
+                } else {
+                    await convertText(style);
+                }
+            }
+
+            async function convertText(style) {
+                const markdown = mdInput.value.trim();
+                if (!markdown) {
+                    showStatus('마크다운을 입력하세요.', 'error');
+                    return;
+                }
+
+                convertBtn.disabled = true;
+                convertBtn.classList.add('loading');
+                convertBtn.textContent = '변환 중...';
+                hideStatus();
+
+                try {
+                    const formData = new FormData();
+                    formData.append('markdown', markdown);
+                    formData.append('style', style);
+
+                    const response = await fetch('/convert/text', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        let errorMsg = '변환 중 오류가 발생했습니다.';
+                        try {
+                            const errorData = await response.json();
+                            errorMsg = errorData.detail || errorMsg;
+                        } catch (e) {
+                            errorMsg = '서버 오류: ' + response.status + ' ' + response.statusText;
+                        }
+                        throw new Error(errorMsg);
+                    }
+
+                    const blob = await response.blob();
+                    downloadBlob(blob, 'document.hwpx');
+                    showStatus('변환 완료! 파일이 다운로드됩니다.', 'success');
+                } catch (error) {
+                    showStatus(error.message, 'error');
+                } finally {
+                    convertBtn.disabled = false;
+                    convertBtn.classList.remove('loading');
+                    updateConvertBtnLabel();
+                }
+            }
+
+            async function convertFiles(style) {
+                const files = pendingFiles.slice();
+                const total = files.length;
+
+                convertBtn.disabled = true;
+                convertBtn.classList.add('loading');
+                hideStatus();
+
+                const usedNames = new Set();
+                let doneCount = 0;
+                let failCount = 0;
+
+                for (let i = 0; i < files.length; i++) {
+                    convertBtn.textContent = '변환 중... (' + (i + 1) + '/' + total + ')';
+                    setFileStatus(i, 'pending', '변환 중...');
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', files[i], files[i].name);
+                        formData.append('style', style);
+
+                        const response = await fetch('/convert', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(response.status + ' ' + response.statusText);
+                        }
+
+                        // Build filename from original .md name
+                        const origName = files[i].name;
+                        const baseName = origName.replace(/\.(md|markdown|txt)$/i, '') + '.hwpx';
+                        const filename = deduplicateFilename(baseName, usedNames);
+
+                        const blob = await response.blob();
+                        downloadBlob(blob, filename);
+                        setFileStatus(i, 'done', '완료');
+                        doneCount++;
+                    } catch (error) {
+                        setFileStatus(i, 'fail', '실패');
+                        failCount++;
+                    }
+                }
+
+                convertBtn.disabled = false;
+                convertBtn.classList.remove('loading');
+
+                if (failCount === 0) {
+                    showStatus(doneCount + '개 파일 변환 완료! 다운로드됩니다.', 'success');
+                } else {
+                    showStatus(doneCount + '개 성공, ' + failCount + '개 실패', failCount === total ? 'error' : 'success');
+                }
+
+                updateConvertBtnLabel();
+            }
+
+            // Button click handler
+            convertBtn.addEventListener('click', convert);
+
+            // Ctrl+Enter / Cmd+Enter
+            mdInput.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    convert();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
